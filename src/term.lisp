@@ -11,6 +11,10 @@
 (defstruct name
   level str)
 
+(defun name= (a b)
+  (and (string= (name-str a) (name-str b))
+       (= (name-level a) (name-level b))))
+
 (defstruct var
   name skip sub)
 
@@ -18,10 +22,10 @@
   bind body)
 
 (defstruct push
-  name term rest)
+  name term)
 
 (defstruct pop
-  name rest)
+  name)
 
 ;;; printer
 (defun stringfy-name (name)
@@ -44,12 +48,13 @@
 
 (defun stringfy-subst (sub)
   (with-output-to-string (out)
-    (match sub
-      (:id nil)
-      ((push- name term rest)
-       (format out "+~a(~a)~a" name (stringfy-term term) (stringfy-subst rest)))
-      ((pop- name rest)
-       (format out "-~a~a" name (stringfy-subst rest))))))
+    (mapc #'(lambda (x)
+	      (match x
+		((push- name term)
+		 (format out "+~a(~a)" name (stringfy-term term)))
+		((pop- name)
+		 (format out "-~a" name))))
+	  sub)))
 
 ;;; parser
 ;; TERM := (var NAME SKIP SUB)
@@ -73,43 +78,34 @@
   (make-name :str (car sexp) :level (cadr sexp)))
 
 (defun parse-sub (sexp)
-  (match sexp
-    (nil :id)
-    ((cons (list '+ name term) rest)
-     (make-push :name (parse-name name)
-		:term (parse term)
-		:rest (parse-sub rest)))
-    ((cons (list '- name) rest)
-     (make-pop :name (parse-name name)
-	       :rest (parse-sub rest)))))
+  (mapcar #'(lambda (x)
+	      (match x
+		((list '+ name term)
+		 (make-push :name (parse-name name)
+			    :term (parse term)))
+		((list '- name)
+		 (make-pop :name (parse-name name)))))
+	  sexp))
 
 ;;;; Substitution
 ;;; <v, d>-component
 (defun component (sub name% skip)
-  (match sub
-    (:id (make-var :name name% :skip skip :sub sub))
-    ((push- name term rest)
-     (if (and (equal name name%) (zerop skip))
-	 term
-	 (component rest name (- skip (if (equal name name%) 1 0)))))
-    ((pop- name rest)
-     (component rest name (+ skip (if (equal name name%) 1 0))))))
+  (if (null sub)
+      (make-var :name name% :skip skip :sub sub)
+      (match (first sub)
+	((push- name term)
+	 (if (and (name= name name%) (zerop skip))
+	     term
+	     (component (rest sub) name (- skip (if (equal name name%) 1 0)))))
+	((pop- name)
+	 (component (rest sub) name (+ skip (if (name= name name%) 1 0)))))))
 
 ;;; S-restriction
 (defun restrict (sub pred)
-  (match sub
-    (:id :id)
-    ((push- name term rest)
-     (if (funcall pred name)
-	 (make-push :name name
-		    :term term
-		    :rest (restrict rest pred))
-	 (restrict rest pred)))
-    ((pop- name rest)
-     (if (funcall pred name)
-	 (make-pop :name name
-		   :rest (restrict rest pred))
-	 (restrict rest pred)))))
+  (remove-if-not pred sub
+		 :key (lambda (x) (match x
+				    ((push- name) name)
+				    ((pop- name) name)))))
 
 (defun restrict< (sub level)
   (restrict sub (lambda (x) (< (name-level x) level))))
@@ -120,7 +116,8 @@
 ;;; apply substitution
 (defun apply-subst (term sub%)
   (match term
-    ((var- name skip sub) (if (eq :id (restrict>= sub (name-level name)))
+    ((var- name skip sub) (if (and (eq :id sub)
+				   (eq :id (restrict>= sub% (name-level name))))
 			      (make-var :name name
 					:skip skip
 					:sub sub%)
@@ -130,12 +127,12 @@
     ((abs- bind body)
      (make-abs :bind bind
 	       :body (apply-subst body
-				  (make-push :name bind
-					     :term (make-var :name bind
-							     :skip 0
-							     :sub :id)
-					     :rest (compose-subst sub%
-								  (make-pop :name bind :rest :id))))))
+				  (cons (make-push :name bind
+						   :term (make-var :name bind
+								   :skip 0
+								   :sub :id))
+					(compose-subst sub%
+						       (list (make-pop :name bind)))))))
     ((app- level fun arg)
      (make-app :level level
 	       :fun (apply-subst fun sub%)
@@ -143,17 +140,16 @@
 
 ;;; subst composition
 (defun compose-subst (a b)
-  (match a
-    (:id b)
-    ((push- name term rest) (make-push :name name
-				       :term (apply-subst term (restrict>= b (name-level name)))
-				       :rest (compose-subst rest b)))
-    ((pop- name rest) (make-pop :name name
-				:rest (compose-subst rest b)))))
+  (nconc (mapcar #'(lambda (x)
+		     (match x
+		       ((push- name term)
+			(make-push :name name
+				   :term (apply-subst term (restrict>= b (name-level name)))))
+		       ((pop- ) x)))
+		 a) b))
 
 ;;;; Reduction
 (defun is-beta-redex (term)
-
   (match term
     ((guard (app- level
 		  (fun (abs- (bind (name- (level level%))))))
@@ -161,10 +157,57 @@
      t)
     (_ nil)))
 
-(defun beta-reduction (term)
+(defun beta-reduce (term)
   (match term
     ((app- (fun (abs- bind body))
 	   arg)
      (apply-subst body
 		  (make-push :name bind
 			     :term arg)))))
+
+;;;; eta-reduction
+(defun subst-names (sub)
+  (remove-duplicates (mapcar #'(lambda (x)
+				 (match x
+				   ((pop- name) name)
+				   ((push- name) name)))
+			     sub)
+		     :test #'name=))
+
+(defun restrict-name (sub name)
+  (restrict sub #'(lambda (x) (name= name (match x
+					    ((push- name) name)
+					    ((pop- name) name))))))
+
+(defun eta-reduce-1-able (sub)
+  (match sub
+    ((list* (pop- ) (push- ) _) t)
+    ((cons _ rest) (eta-reduce-1-able rest))
+    (nil nil)))
+
+(defun eta-reduce-1 (sub)
+  (match sub
+    ((list* (pop- ) (push- ) rest) rest)
+    ((cons x rest) (cons x (eta-reduce-1 rest)))
+    (nil nil)))
+
+(defun eta-reduce-2-able (sub)
+  #|FIXME|#
+  sub)
+
+(defun eta-reduce-2 (sub)
+  #|FIXME|#
+  sub)
+
+(defun normalize-subst% (sub)
+  (cond ((eta-reduce-1-able sub)
+	 (normalize-subst% (eta-reduce-1 sub)))
+	((eta-reduce-2-able sub)
+	 (normalize-subst% (eta-reduce-2 sub)))
+	(t sub)))
+
+(defun normalize-subst (sub)
+  (reduce #'nconc
+	  (mapcar #'normalize-subst%
+		  (mapcar #'(lambda (x) (restrict-name sub x))
+			  (subst-names sub)))))
