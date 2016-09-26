@@ -179,31 +179,48 @@
 					    ((push- name) name)
 					    ((pop- name) name))))))
 
-(defun eta-reduce-1-able (sub)
+(defun epsilon-reduce-1-able (sub)
   (match sub
     ((list* (pop- ) (push- ) _) t)
-    ((cons _ rest) (eta-reduce-1-able rest))
+    ((cons _ rest) (epsilon-reduce-1-able rest))
     (nil nil)))
 
-(defun eta-reduce-1 (sub)
+(defun epsilon-reduce-1 (sub)
   (match sub
     ((list* (pop- ) (push- ) rest) rest)
-    ((cons x rest) (cons x (eta-reduce-1 rest)))
+    ((cons x rest) (cons x (epsilon-reduce-1 rest)))
     (nil nil)))
 
-(defun eta-reduce-2-able (sub)
-  #|FIXME|#
-  sub)
+(defun epsilon-reduce-2-able% (sub)
+  (match sub
+    ((cons (push- (name x) (term (var- (name y) skip (sub nil))))
+	   rest)
+     (and (name= x y)
+	  (= (1- skip) (length rest))
+	  (every (lambda (x) (and (pop-p x) (name= x (pop-name x))))
+		 rest)))
+    (_ nil)))
 
-(defun eta-reduce-2 (sub)
-  #|FIXME|#
-  sub)
+(defun epsilon-reduce-2% (sub)
+  (cddr sub))
+
+(defun epsilon-reduce-2-able (sub)
+  (match sub
+    ((guard x (epsilon-reduce-2-able% x)) t)
+    ((cons _ rest) (epsilon-reduce-2-able rest))
+    (t nil)))
+
+(defun epsilon-reduce-2 (sub)
+  (match sub
+    ((guard x (epsilon-reduce-2-able% x)) (epsilon-reduce-2% x))
+    ((cons x rest) (cons x (epsilon-reduce-2-able rest)))
+    (t sub)))
 
 (defun normalize-subst% (sub)
-  (cond ((eta-reduce-1-able sub)
-	 (normalize-subst% (eta-reduce-1 sub)))
-	((eta-reduce-2-able sub)
-	 (normalize-subst% (eta-reduce-2 sub)))
+  (cond ((epsilon-reduce-1-able sub)
+	 (normalize-subst% (epsilon-reduce-1 sub)))
+	((epsilon-reduce-2-able sub)
+	 (normalize-subst% (epsilon-reduce-2 sub)))
 	(t sub)))
 
 (defun normalize-subst (sub)
