@@ -51,10 +51,13 @@
     (mapc #'(lambda (x)
 	      (match x
 		((push- name term)
-		 (format out "+~a(~a)" name (stringfy-term term)))
+		 (format out "+~a(~a)" (stringfy-name name) (stringfy-term term)))
 		((pop- name)
-		 (format out "-~a" name))))
+		 (format out "-~a" (stringfy-name name)))))
 	  sub)))
+
+(defun print-term (term)
+  (princ (stringfy-term term)))
 
 ;;; parser
 ;; TERM := (var NAME SKIP SUB)
@@ -96,9 +99,9 @@
 	((push- name term)
 	 (if (and (name= name name%) (zerop skip))
 	     term
-	     (component (rest sub) name (- skip (if (equal name name%) 1 0)))))
+	     (component (rest sub) name% (- skip (if (equal name name%) 1 0)))))
 	((pop- name)
-	 (component (rest sub) name (+ skip (if (name= name name%) 1 0)))))))
+	 (component (rest sub) name% (+ skip (if (name= name name%) 1 0)))))))
 
 ;;; S-restriction
 (defun restrict (sub pred)
@@ -115,28 +118,30 @@
 
 ;;; apply substitution
 (defun apply-subst (term sub%)
-  (match term
-    ((var- name skip sub) (if (and (eq :id sub)
-				   (eq :id (restrict>= sub% (name-level name))))
-			      (make-var :name name
-					:skip skip
-					:sub sub%)
-			      (apply-subst (component sub% name skip)
-					   (restrict< (compose-subst sub sub%)
-						      (name-level name)))))
-    ((abs- bind body)
-     (make-abs :bind bind
-	       :body (apply-subst body
-				  (cons (make-push :name bind
-						   :term (make-var :name bind
-								   :skip 0
-								   :sub :id))
-					(compose-subst sub%
-						       (list (make-pop :name bind)))))))
-    ((app- level fun arg)
-     (make-app :level level
-	       :fun (apply-subst fun sub%)
-	       :arg (apply-subst arg (restrict>= sub% level))))))
+  (if (null sub%)
+      term
+      (match term
+	((var- name skip sub) (if (and (eq :id sub)
+				       (eq :id (restrict>= sub% (name-level name))))
+				  (make-var :name name
+					    :skip skip
+					    :sub sub%)
+				  (apply-subst (component sub% name skip)
+					       (restrict< (compose-subst sub sub%)
+							  (name-level name)))))
+	((abs- bind body)
+	 (make-abs :bind bind
+		   :body (apply-subst body
+				      (cons (make-push :name bind
+						       :term (make-var :name bind
+								       :skip 0
+								       :sub nil))
+					    (compose-subst sub%
+							   (list (make-pop :name bind)))))))
+	((app- level fun arg)
+	 (make-app :level level
+		   :fun (apply-subst fun sub%)
+		   :arg (apply-subst arg (restrict>= sub% level)))))))
 
 ;;; subst composition
 (defun compose-subst (a b)
@@ -162,8 +167,7 @@
     ((app- (fun (abs- bind body))
 	   arg)
      (apply-subst body
-		  (make-push :name bind
-			     :term arg)))))
+		  (list (make-push :name bind :term arg))))))
 
 ;;;; eta-reduction
 (defun subst-names (sub)
