@@ -1,10 +1,11 @@
-(defpackage :coffee.acupof.lambda-star.term
+(defpackage :coffee.acupof.lambda-star
   (:use :common-lisp
 	:optima)
   (:shadow :abs :push :pop))
 
-(in-package :coffee.acupof.lambda-star.term)
+(in-package :coffee.acupof.lambda-star)
 
+;;; Terms
 (defstruct app
   level fun arg)
 
@@ -21,13 +22,15 @@
 (defstruct abs
   bind body)
 
+;;; Substitution
+;; a substitution is represented as a list of push and pop
 (defstruct push
   name term)
 
 (defstruct pop
   name)
 
-;;; printer
+;;; Printer
 (defun stringfy-name (name)
   (with-output-to-string (out)
     (format out "~a~a" (name-str name) (name-level name))))
@@ -90,7 +93,7 @@
 		 (make-pop :name (parse-name name)))))
 	  sexp))
 
-;;;; Substitution
+;;;; Operations around substitution
 ;;; <v, d>-component
 (defun component (sub name% skip)
   (if (null sub)
@@ -99,7 +102,7 @@
 	((push- name term)
 	 (if (and (name= name name%) (zerop skip))
 	     term
-	     (component (rest sub) name% (- skip (if (equal name name%) 1 0)))))
+	     (component (rest sub) name% (- skip (if (name= name name%) 1 0)))))
 	((pop- name)
 	 (component (rest sub) name% (+ skip (if (name= name name%) 1 0)))))))
 
@@ -121,8 +124,8 @@
   (if (null sub%)
       term
       (match term
-	((var- name skip sub) (if (and (eq :id sub)
-				       (eq :id (restrict>= sub% (name-level name))))
+	((var- name skip sub) (if (and (null sub)
+				       (null (restrict>= sub% (name-level name))))
 				  (make-var :name name
 					    :skip skip
 					    :sub sub%)
@@ -153,7 +156,12 @@
 		       ((pop- ) x)))
 		 a) b))
 
-;;;; Reduction
+;;;; Reduction, Convertion
+;;; alpha-conversion
+(defun alpha-rename ())
+
+
+;;; beta-reduction
 (defun is-beta-redex (term)
   (match term
     ((guard (app- level
@@ -169,7 +177,7 @@
      (apply-subst body
 		  (list (make-push :name bind :term arg))))))
 
-;;;; eta-reduction
+;;; epsilon-reduction
 (defun subst-names (sub)
   (remove-duplicates (mapcar #'(lambda (x)
 				 (match x
