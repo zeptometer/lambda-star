@@ -154,7 +154,8 @@
 			(make-push :name name
 				   :term (apply-subst term (restrict>= b (name-level name)))))
 		       ((pop- ) x)))
-		 a) b))
+		 a)
+	 b))
 
 ;;;; Reduction, Convertion
 ;;; alpha-conversion
@@ -194,13 +195,13 @@
 (defun epsilon-reduce-1-able (sub)
   (match sub
     ((list* (pop- ) (push- ) _) t)
-    ((cons _ rest) (epsilon-reduce-1-able rest))
+    ((list* _ rest) (epsilon-reduce-1-able rest))
     (nil nil)))
 
 (defun epsilon-reduce-1 (sub)
   (match sub
     ((list* (pop- ) (push- ) rest) rest)
-    ((cons x rest) (cons x (epsilon-reduce-1 rest)))
+    ((list* x rest) (cons x (epsilon-reduce-1 rest)))
     (nil nil)))
 
 (defun epsilon-reduce-2-able% (sub)
@@ -219,13 +220,13 @@
 (defun epsilon-reduce-2-able (sub)
   (match sub
     ((guard x (epsilon-reduce-2-able% x)) t)
-    ((cons _ rest) (epsilon-reduce-2-able rest))
+    ((list* _ rest) (epsilon-reduce-2-able rest))
     (t nil)))
 
 (defun epsilon-reduce-2 (sub)
   (match sub
     ((guard x (epsilon-reduce-2-able% x)) (epsilon-reduce-2% x))
-    ((cons x rest) (cons x (epsilon-reduce-2-able rest)))
+    ((list* x rest) (cons x (epsilon-reduce-2-able rest)))
     (t sub)))
 
 (defun normalize-subst% (sub)
@@ -240,3 +241,32 @@
 	  (mapcar #'normalize-subst%
 		  (mapcar #'(lambda (x) (restrict-name sub x))
 			  (subst-names sub)))))
+
+;;; Left-most reduction
+(defun reduce-term-leftmost (term)
+  (if (is-beta-redex term)
+      (values (beta-reduce term) t)
+      (match term
+	((var- name skip sub)
+	 (multiple-value-bind (sub% win) (reduce-subst-leftmost sub)
+	   (values (make-var :name name :skip skip :sub sub%) win)))
+	((app- level fun arg)
+	 (multiple-value-bind (fun% win) (reduce-term-leftmost fun)
+	   (if win
+	       (values (make-app :level level :fun fun% :arg arg) t)
+	       (multiple-value-bind (arg% win) (reduce-term-leftmost arg)
+		 (values (make-app :level level :fun fun :arg arg%) win)))))
+	((abs- bind body)
+	 (multiple-value-bind (body% win) (reduce-term-leftmost body)
+	   (values (make-abs :bind bind :body body%) win))))))
+
+(defun reduce-subst-leftmost (subst)
+  (match subst
+    (nil (values nil nil))
+    ((list* (and pohe (push- name term)) rest)
+     (multiple-value-bind (term% win) (reduce-term-leftmost term)
+       (if win
+	   (list* (make-push :name name :term term%) rest)
+	   (list* pohe (reduce-subst-leftmost rest)))))
+    ((list* (and pohe (pop- )) rest)
+     (list* pohe (reduce-subst-leftmost rest)))))
