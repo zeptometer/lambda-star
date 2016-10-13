@@ -1,4 +1,4 @@
-(defpackage :lambda-star.reduction
+(defpackage :lambda-star.reduce
   (:use :common-lisp
 	:optima
 	:lambda-star.term)
@@ -6,7 +6,7 @@
 	   :beta-reduce
 	   :normalize-subst))
 
-(in-package :lambda-star.reduction)
+(in-package :lambda-star.reduce)
 
 ;;;; Operations around substitution
 ;;; <v, d>-component

@@ -1,12 +1,12 @@
-(defpackage :lambda-star.evaluation
+(defpackage :lambda-star.eval
     (:use :common-lisp
 	  :optima
 	  :lambda-star.term
-	  :lambda-star.reduction)
+	  :lambda-star.reduce)
     (:export :reduce-term-leftmost
 	     :reduce-subst-leftmost))
 
-(in-package :lambda-star.evaluation)
+(in-package :lambda-star.eval)
 
 ;;; Left-most reduction
 (defun reduce-term-leftmost (term)
