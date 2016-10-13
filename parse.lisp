@@ -42,13 +42,13 @@
   (match sexp
     ((guard x (and (symbolp x)
 		   (every #'upper-case-p (symbol-name x))))
-     (make-name :str (symbol-name x) :level 0))
+     (make-name :str (string-downcase (symbol-name x)) :level 0))
     ((guard x (and (symbolp x)
 		   (every #'lower-case-p (symbol-name x))))
-     (make-name :str (symbol-name x) :level 1))
+     (make-name :str (string-upcase (symbol-name x)) :level 1))
     ((list name level)
      (make-name :str name :level level))
-    (_ (error "parse erorr"))))
+    (_ (error "parse error"))))
 
 (defun parse-sub (sexp)
   (mapcar #'(lambda (x)

@@ -8,17 +8,28 @@
 (defmethod print-object ((obj name) stream)
   (match obj
     ((name- level str)
-     (format stream "~a~a" str level))))
+     (cond ((and (= level 0)
+		 (every #'lower-case-p str))
+	    (format stream "~a" str))
+	   ((and (= level 1)
+		 (every #'upper-case-p str))
+	    (format stream "~a" str))
+	   (t (format stream "~a~a" str level))))))
 
 (defmethod print-object ((obj app) stream)
   (match obj
     ((app- level fun arg)
-     (format stream "(~a @~a ~a)" fun level arg))))
+     (case level
+       (0 (format stream "(~a~a)" fun arg))
+       (1 (format stream "(~a@~a)" fun arg))
+       (otherwise (format stream "(~a@~a~a)" fun level arg))))))
 
 (defmethod print-object ((obj var) stream)
   (match obj
     ((var- name skip sub)
-     (format stream "~a^~a[~{~a ~}]" name skip sub))))
+     (format stream "~a" name)
+     (unless (zerop skip) (format stream "^~a" skip))
+     (unless (null sub) (format stream "[~{~a~}]" sub)))))
 
 (defmethod print-object ((obj abst) stream)
   (match obj
