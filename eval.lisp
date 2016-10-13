@@ -1,10 +1,12 @@
-(defpackage :coffee.acupof.lambda-star.evaluation
+(defpackage :lambda-star.evaluation
     (:use :common-lisp
 	  :optima
-	  :coffee.acupof.lambda-star.term
-	  :coffee.acupof.lambda-star.reduction))
+	  :lambda-star.term
+	  :lambda-star.reduction)
+    (:export :reduce-term-leftmost
+	     :reduce-subst-leftmost))
 
-(in-package :coffee.acupof.lambda-star.evaluation)
+(in-package :lambda-star.evaluation)
 
 ;;; Left-most reduction
 (defun reduce-term-leftmost (term)

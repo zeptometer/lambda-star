@@ -1,12 +1,12 @@
-(defpackage :coffee.acupof.lambda-star.reduction
+(defpackage :lambda-star.reduction
   (:use :common-lisp
 	:optima
-	:coffee.acupof.lambda-star.term)
+	:lambda-star.term)
   (:export :is-beta-redex
 	   :beta-reduce
 	   :normalize-subst))
 
-(in-package :coffee.acupof.lambda-star.reduction)
+(in-package :lambda-star.reduction)
 
 ;;;; Operations around substitution
 ;;; <v, d>-component
@@ -25,7 +25,7 @@
 (defun restrict (sub pred)
   (remove-if-not pred sub
 		 :key (lambda (x) (match x
-				    ((spush name) name)
+				    ((spush- name) name)
 				    ((spop- name) name)))))
 
 (defun restrict< (sub level)
@@ -65,7 +65,7 @@
 (defun compose-subst (a b)
   (nconc (mapcar #'(lambda (x)
 		     (match x
-		       ((spush name term)
+		       ((spush- name term)
 			(make-spush :name name
 				   :term (apply-subst term (restrict>= b (name-level name)))))
 		       ((spop- ) x)))
@@ -94,30 +94,30 @@
   (remove-duplicates (mapcar #'(lambda (x)
 				 (match x
 				   ((spop- name) name)
-				   ((spush name) name)))
+				   ((spush- name) name)))
 			     sub)
 		     :test #'name=))
 
 (defun restrict-name (sub name)
   (restrict sub #'(lambda (x) (name= name (match x
-					    ((spush name) name)
+					    ((spush- name) name)
 					    ((spop- name) name))))))
 
 (defun epsilon-reduce-1-able (sub)
   (match sub
-    ((list* (spop- ) (spush ) _) t)
+    ((list* (spop- ) (spush- ) _) t)
     ((list* _ rest) (epsilon-reduce-1-able rest))
     (nil nil)))
 
 (defun epsilon-reduce-1 (sub)
   (match sub
-    ((list* (spop- ) (spush ) rest) rest)
+    ((list* (spop- ) (spush- ) rest) rest)
     ((list* x rest) (cons x (epsilon-reduce-1 rest)))
     (nil nil)))
 
 (defun epsilon-reduce-2-able% (sub)
   (match sub
-    ((guard (cons (spush (name x) (term (var- (name y) skip (sub nil))))
+    ((guard (cons (spush- (name x) (term (var- (name y) skip (sub nil))))
 		  rest)
 	    (and (name= x y)
 		 (= (1- skip) (length rest))

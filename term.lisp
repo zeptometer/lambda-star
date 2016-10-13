@@ -1,4 +1,4 @@
-(defpackage :coffee.acupof.lambda-star.term
+(defpackage :lambda-star.term
   (:use :common-lisp)
   (:export :app
 	   :make-app
@@ -33,7 +33,7 @@
 	   :spop-p
 	   :spop-name))
 
-(in-package :coffee.acupof.lambda-star.term)
+(in-package :lambda-star.term)
 
 (defstruct app
   level fun arg)

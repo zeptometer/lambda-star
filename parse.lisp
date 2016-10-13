@@ -1,10 +1,12 @@
-(defpackage :coffee.acupof.lambda-star.parse
+(defpackage :lambda-star.parse
   (:use :common-lisp
 	:optima
-	:coffee.acupof.lambda-star.term)
-  (:export :parse))
+	:lambda-star.term)
+  (:export :parse
+	   :fn
+	   :var))
 
-(in-package :coffee.acupof.lambda-star.parse)
+(in-package :lambda-star.parse)
 
 ;;; parser
 ;; TERM := (var NAME SKIP SUB)
@@ -21,8 +23,9 @@
      (make-var :name (parse-name name) :skip skip :sub (parse-sub sub)))
     ((list 'fn name body)
      (make-abst :bind (parse-name name) :body (parse body)))
-    ((list level fun arg)
-     (make-app :level level :fun (parse fun) :arg (parse arg)))))
+    ((guard (list level fun arg) (numberp level))
+     (make-app :level level :fun (parse fun) :arg (parse arg)))
+    (_ (error "parse error"))))
 
 (defun parse-name (sexp)
   (make-name :str (car sexp) :level (cadr sexp)))
